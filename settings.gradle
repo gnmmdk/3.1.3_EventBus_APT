@@ -1,0 +1,2 @@
+include ':app', ':eventbus_compiler', ':eventbus_annotation', ':eventbus'
+rootProject.name='3.1.3_EventBus_APT'
