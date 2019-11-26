@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)//要在编译时进行一些预处理操作，注解会在class文件中存在
 public @interface Subscribe {
     //线程模式，默认推荐POSTING(订阅、发布在同一线程）
-    ThreadMode threaMode() default ThreadMode.POSTING;
+    ThreadMode threadMode() default ThreadMode.POSTING;
 
     //是否使用粘性事件
     boolean sticky() default false;

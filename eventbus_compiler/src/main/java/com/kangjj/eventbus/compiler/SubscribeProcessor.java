@@ -182,7 +182,7 @@ public class SubscribeProcessor extends AbstractProcessor {
                         methodName,
                         ClassName.get(parameterElement),
                         ThreadMode.class,
-                        subscribe.threaMode(),
+                        subscribe.threadMode(),
                         subscribe.priority(),
                         subscribe.sticky())
                         .build();
