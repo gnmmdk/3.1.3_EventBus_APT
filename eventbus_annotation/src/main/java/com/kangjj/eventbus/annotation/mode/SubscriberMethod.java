@@ -13,7 +13,7 @@ public class SubscriberMethod {
     private int priority;               //事件订阅优先级（实现思路：重排序集合中方法的顺序）
     private boolean sticky;             //是否粘性事件（实现思路：发送时存储，注册时判断粘性再激活）
 
-    public SubscriberMethod(Class<?> subscriberClass,String methodName, ThreadMode threadMode, Class<?> eventType, int priority, boolean sticky) {
+    public SubscriberMethod(Class<?> subscriberClass,String methodName, Class<?> eventType, ThreadMode threadMode, int priority, boolean sticky) {
         this.methodName = methodName;
         this.threadMode = threadMode;
         this.eventType = eventType;
