@@ -145,7 +145,7 @@ public class SubscribeProcessor extends AbstractProcessor {
         TypeName fieldType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 ClassName.get(Class.class),
-                ClassName.get(SubscriberMethod.class)
+                ClassName.get(SubscriberInfo.class)
         );
         //添加静态代码块 SUBSCRIBER_INDEX = new HashMap<Class, SubscriberInfo>();
         CodeBlock.Builder codeBlock = CodeBlock.builder();
