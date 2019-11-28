@@ -21,6 +21,10 @@ final class Subscription {
         //必须重写方法，检测激活粘性事件重复调用（同一对象注册多个）
         if(other instanceof Subscription){
             Subscription otherSubscription = (Subscription)other;
+            //return subscriber == otherSubscription.subscriber
+            //                    && subscriberMethod.equals(otherSubscription.subscriberMethod); 源码
+
+
             //删除官方：subscriber == otherSubscription.subscriber判断条件 TODO 理解
             //原因：粘性事件Bug，多次调用和移除时重现，参考Subscription.java 37行
             return subscriberMethod.equals(otherSubscription.subscriberMethod);
