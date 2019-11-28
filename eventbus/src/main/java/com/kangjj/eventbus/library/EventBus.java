@@ -268,6 +268,11 @@ public class EventBus {
             subscriptions = subscriptionByEventType.get(eventClass);
         }
         if(subscriptions!=null && !subscriptions.isEmpty()){
+            // “多次调用和移除粘性事件时，post会执行多次粘性事件订阅方法（非粘性正常）”
+            //导致问题出现的根本原因是在注册的时候，注册类中所有订阅事件方法会被封装为
+            // Subscription 加入到 subscriptionsByEventType map 集合里，而 removeStickyEvent 并不会删除
+            // subscriptionsByEventType 集合粘性事件的 Subscription。后续执行 post 发送事件
+            // 就会出现上述方法 postSingleEventForEventType 中多次调用的问题。
             for (Subscription subscription : subscriptions) {
                 // 遍历，寻找发送方指定的EventBean，匹配的订阅方法的EventBean
                 postToSubscription(subscription,event);
@@ -322,5 +327,10 @@ public class EventBus {
             subscribedTypes.clear();
             typesBySubscriber.remove(subscriber);
         }
+    }
+
+
+    public synchronized boolean isRegistered(Object subscriber) {
+        return typesBySubscriber.containsKey(subscriber);
     }
 }

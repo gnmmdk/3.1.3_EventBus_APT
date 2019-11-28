@@ -78,4 +78,7 @@ public class MainActivity extends AppCompatActivity {
         Log.e("sticky1", user.toString());
     }
 
+    public void goTicky(View view) {
+        startActivity(new Intent(this,TestStickyActivity.class));
+    }
 }
