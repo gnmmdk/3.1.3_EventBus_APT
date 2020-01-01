@@ -54,9 +54,9 @@ public class EventBus {
     }
 
     public static EventBus getDefault(){
-        if(defaultInstance != null){
+        if(defaultInstance == null){
             synchronized (EventBus.class){
-                if(defaultInstance!=null){
+                if(defaultInstance==null){
                     defaultInstance = new EventBus();
                 }
             }
@@ -74,6 +74,9 @@ public class EventBus {
         Class<?> subscriberClass = subscriber.getClass();
         //todo A.1 寻找（MainActivity.class)订阅方法集合
         List<SubscriberMethod> subscriberMethods = findSubscriberMethods(subscriberClass);
+        if(subscriberMethods == null){
+            return;
+        }
         synchronized (this){
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
                 subscriber(subscriber,subscriberMethod);
@@ -82,7 +85,7 @@ public class EventBus {
     }
 
     /**
-     * //todo 寻找（MainActivity.class）订阅方法集合，参考SubscriberMethodFinder.java 55行
+     * todo 寻找（MainActivity.class）订阅方法集合，参考SubscriberMethodFinder.java 55行
      *
      * @param subscriberClass
      * @return
@@ -137,10 +140,13 @@ public class EventBus {
             subscriptions = new CopyOnWriteArrayList<>();
             subscriptionByEventType.put(eventType,subscriptions);
         }else{
-            if(subscriptions.contains(subscription)){//todo 判断列表中是否包含Subscription 最后会调用到内部的equals方法
-                Log.e("netease >>> ", subscriber.getClass() + "重复注册粘性事件！");//原Eventbus这里是直接抛出异常。这里我们是再次执行黏性事件。优化的地方
-                //todo  解决bug：解决粘性事件订阅方法无法第2次消费
-                // 执行多次黏性事件，但不添加到集合，避免订阅方法多次执行
+            //if (subscriptions.contains(newSubscription)) {
+            //                throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event "
+            //                        + eventType);
+            //            } 源码
+            if(subscriptions.contains(subscription)){
+                Log.e("netease >>> ", subscriber.getClass() + "重复注册粘性事件！");
+                //执行多次黏性事件，但不添加到集合，避免订阅方法多次执行
                 sticky(subscriberMethod,eventType,subscription);
                 return;
             }
@@ -151,7 +157,7 @@ public class EventBus {
             //如果满足任一条件则进入循环（第一次i=size=0）
             //第2次，size不为0，新加入的订阅方法匹配集合中所有订阅方法的优先级
             if(i==size || subscriberMethod.getPriority() > subscriptions.get(i).subscriberMethod.getPriority()){
-                //如果新加入的订阅方法优先级大于集合中某订阅方法优先级，则插队到它之前以为
+                //如果新加入的订阅方法优先级大于集合中某订阅方法优先级，则插队到它之前一位
                 if(!subscriptions.contains(subscription)){
                     subscriptions.add(i,subscription);
                 }
@@ -229,29 +235,6 @@ public class EventBus {
         }
     }
 
-    // 发送消息 / 事件
-    public void post(Object event) {
-        // 此处两个参数，简化了源码，参考EventBus.java 252 - 265 - 384 - 400行
-        postSingleEventForEventType(event, event.getClass());
-    }
-
-    // 为EventBean事件类型发布单个事件（遍历），EventBus核心：参数类型必须一致！！！
-    private void postSingleEventForEventType(Object event, Class<?> eventClass) {
-        // 从EventBean缓存中，获取所有订阅者和订阅方法
-        CopyOnWriteArrayList<Subscription> subscriptions;
-        synchronized (this) {
-            // 同步锁，保证并发安全
-            subscriptions = subscriptionByEventType.get(eventClass);
-        }
-        // 判空，健壮性代码
-        if (subscriptions != null && !subscriptions.isEmpty()) {
-            for (Subscription subscription : subscriptions) {
-                // 遍历，寻找发送方指定的EventBean，匹配的订阅方法的EventBean
-                postToSubscription(subscription, event);
-            }
-        }
-    }
-
     /**
      *  执行订阅方法（被注解方法自动执行）参考EventBus.java 505行
      * @param subscription
@@ -266,28 +249,92 @@ public class EventBus {
         }
     }
 
-    // 发送粘性事件，最终还是调用了post方法，参考EventBus.java 301行
-    public void postSticky(Object event) {
-        // 同步锁保证并发安全（小项目可忽略此处）
-        synchronized (stickyEvents) {
-            // 加入粘性事件缓存集合
-            stickyEvents.put(event.getClass(), event);
+    public static void clearCaches(){
+        METHOD_CACHE.clear();
+    }
+
+    // 发送消息 / 事件
+    public void post(Object event) {
+        // 此处两个参数，简化了源码，参考EventBus.java 252 - 265 - 384 - 400行 TODO  look
+        postSingleEventForEventType(event,event.getClass());
+    }
+
+    /**
+     * 为EventBean事件类型发布单个事件（遍历），EventBus核心：类型参数必须一致
+     *
+     * @param event
+     * @param eventClass
+     */
+    private void postSingleEventForEventType(Object event, Class<?> eventClass) {
+        // 从EventBean缓存获取所有订阅者和订阅方法
+        CopyOnWriteArrayList<Subscription> subscriptions;
+        synchronized (this){
+            subscriptions = subscriptionByEventType.get(eventClass);
         }
-        // todo 解决bug：发布粘性事件：触发了所有同类型订阅方法（粘性和非粘性）
-        // 巨坑！！！源码这么写我也不知道什么意图。恶心的后果：只要参数匹配，粘性/非粘性订阅方法全部执行
-        // post(event);
+        if(subscriptions!=null && !subscriptions.isEmpty()){
+            // “多次调用和移除粘性事件时，post会执行多次粘性事件订阅方法（非粘性正常）”
+            //导致问题出现的根本原因是在注册的时候，注册类中所有订阅事件方法会被封装为
+            // Subscription 加入到 subscriptionsByEventType map 集合里，而 removeStickyEvent 并不会删除
+            // subscriptionsByEventType 集合粘性事件的 Subscription。后续执行 post 发送事件
+            // 就会出现上述方法 postSingleEventForEventType 中多次调用的问题。
+            for (Subscription subscription : subscriptions) {
+                // 遍历，寻找发送方指定的EventBean，匹配的订阅方法的EventBean
+                postToSubscription(subscription,event);
+            }
+        }
+    }
+
+    /**
+     * 移除指定类型的粘性事件（此处返回值看自己需求，可为boolean），参考EventBus.java 325行
+     * @param eventType
+     * @param <T>
+     * @return
+     */
+    public <T> T removeStickyEvent(Class<T> eventType) {
+         // 同步锁保证并发安全（小项目可忽略此处）
+        synchronized (stickyEvents){
+            return eventType.cast(stickyEvents.remove(eventType));
+        }
+    }
+
+    /**
+     * 发送粘性事件，最终还是调用了post方法，参考EventBus.java 301行
+     * @param event
+     */
+    public void postSticky(Object event) {
+        synchronized (stickyEvents){
+            // 加入粘性事件缓存集合
+            stickyEvents.put(event.getClass(),event);
+        }
+        // 这里不注释掉会导致：只要参数匹配，粘性/非粘性订阅方法全部执行
+        // 但是注释掉又会引起同个页面包含的sticky方法不会被调用
+//        post(event);
     }
 
     // 获取指定类型的粘性事件，参考EventBus.java 314行
     public <T> T getStickyEvent(Class<T> eventType) {
-        // 同步锁保证并发安全（小项目可忽略此处）
         synchronized (stickyEvents) {
-            // cast方法做转换类型时安全措施（简化stickyEvents.get(eventType)）
             return eventType.cast(stickyEvents.get(eventType));
         }
     }
+    // 移除所有粘性事件，参考EventBus.java 352行
+    public void removeAllStickyEvents(){
+        synchronized (stickyEvents) {
+            stickyEvents.clear();
+        }
+    }
+    // 解除某订阅者关系，参考EventBus.java 239行
+    public synchronized void unregister(Object subscriber){
+        //从缓存中移除
+        List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
+        if(subscribedTypes!=null){
+            subscribedTypes.clear();
+            typesBySubscriber.remove(subscriber);
+        }
+    }
 
-    public static void clearCaches(){
-        METHOD_CACHE.clear();
+
+    public synchronized boolean isRegistered(Object subscriber) {
+        return typesBySubscriber.containsKey(subscriber);
     }
 }
